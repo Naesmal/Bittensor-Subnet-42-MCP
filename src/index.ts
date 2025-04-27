@@ -11,17 +11,18 @@ import { TaostatsService } from "./services/taostats-service.js";
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// Obtenir le répertoire actuel en utilisant ESM
+// Get the current directory using ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Configurer dotenv avec le chemin du fichier .env dans le dossier parent
+// Configure dotenv with the path to the .env file in the parent folder
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
+
 // Create MCP server instance
 const server = new McpServer({
   name: process.env.MCP_SERVER_NAME || "Blockchain Data Provider",
   version: process.env.MCP_SERVER_VERSION || "1.0.0",
-  description: process.env.MCP_SERVER_DESCRIPTION || "Provides data access to blockchain resources",
+  description: process.env.MCP_SERVER_DESCRIPTION || "Provides access to Masa and Bittensor blockchain data",
 });
 
 // Initialize services based on configuration
@@ -37,11 +38,7 @@ if (enableMasa) {
     masaService = new MasaService();
     logger.info("Masa service initialized successfully");
   } catch (error) {
-    if (error instanceof Error) {
-      logger.error(`Failed to initialize Masa service: ${error.message}`);
-    } else {
-      logger.error(`Failed to initialize Masa service: Unknown error`);
-    }
+    logger.error(`Failed to initialize Masa service: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -50,11 +47,7 @@ if (enableTaostats) {
     taostatsService = new TaostatsService();
     logger.info("Taostats service initialized successfully");
   } catch (error) {
-    if (error instanceof Error) {
-      logger.error(`Failed to initialize Taostats service: ${error.message}`);
-    } else {
-      logger.error(`Failed to initialize Taostats service: Unknown error`);
-    }
+    logger.error(`Failed to initialize Taostats service: ${error instanceof Error ? error.message : "Unknown error"}`);
   }
 }
 
@@ -83,34 +76,21 @@ if (masaService) {
           content: [
             {
               type: "text",
-              text: `${results.summary}\n\n${JSON.stringify(results.results, null, 2)}`,
+              text: `${results.summary}\n\n${JSON.stringify(results.results || [], null, 2)}`,
             },
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error in Twitter search: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error executing Twitter search: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error in Twitter search: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error executing Twitter search: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error in Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error executing Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -133,35 +113,22 @@ if (masaService) {
             {
               type: "text",
               text: format === "text" 
-                ? `${result.summary}\n\n${result.content}` 
-                : `${result.summary}\n\n${JSON.stringify(result, null, 2)}`,
+                ? `${result.summary}\n\n${result.content || ""}` 
+                : `${result.summary}\n\n${JSON.stringify(result || {}, null, 2)}`,
             },
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error in web scraping: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error scraping web page: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error in web scraping: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error scraping web page: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error in web scraping: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error scraping web page: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -197,29 +164,16 @@ if (masaService) {
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error in search term extraction: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error extracting search terms: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error in search term extraction: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error extracting search terms: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error in search term extraction: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error extracting search terms: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -241,34 +195,21 @@ if (masaService) {
           content: [
             {
               type: "text",
-              text: `${result.summary}\n\n${result.result}`,
+              text: `${result.summary}\n\n${result.result || ""}`,
             },
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error in tweet analysis: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error analyzing tweets: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error in tweet analysis: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error analyzing tweets: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error in tweet analysis: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error analyzing tweets: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -291,34 +232,21 @@ if (masaService) {
           content: [
             {
               type: "text",
-              text: `${results.summary}\n\n${JSON.stringify(results.results, null, 2)}`,
+              text: `${results.summary}\n\n${JSON.stringify(results.results || [], null, 2)}`,
             },
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error in similarity search: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error searching similar tweets: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error in similarity search: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error searching similar tweets: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error in similarity search: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error searching similar tweets: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -338,12 +266,23 @@ if (taostatsService) {
         logger.info(`Getting TAO price history for ${days} days`);
         const result = await taostatsService.getTaoPrice(days);
         
-        // Create a more readable response with the summary followed by formatted data
+        if (!result || typeof result !== 'object') {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No price data available.",
+              },
+            ],
+          };
+        }
+        
+        // Create a properly formatted response
         const response = [
-          result.summary,
+          result.summary || "No price data available.",
           "",
           "Current Price Details:",
-          `--------------`,
+          "--------------",
           result.currentPrice ? 
             `Price: $${result.currentPrice.price.toFixed(2)}
 Change (24h): ${result.currentPrice.percentChange24h >= 0 ? '+' : ''}${result.currentPrice.percentChange24h.toFixed(2)}%
@@ -360,29 +299,16 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error getting TAO price: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error retrieving TAO price: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error getting TAO price: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error retrieving TAO price: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error getting TAO price: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error retrieving TAO price: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -399,13 +325,24 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
         logger.info(`Getting subnet info for netuid: ${netuid}`);
         const result = await taostatsService.getSubnetInfo(netuid);
         
-        // Format a nice response with key metrics
+        if (!result || typeof result !== 'object') {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No information available for subnet ${netuid}.`,
+              },
+            ],
+          };
+        }
+        
+        // Format response with key metrics
         const response = [
-          result.summary,
+          result.summary || `No information available for subnet ${netuid}.`,
           "",
           "Subnet Metrics:",
           "--------------",
-          `Active Validators: ${result.activeValidators}`,
+          `Active Validators: ${result.activeValidators || 'N/A'}`,
           `Daily Emission: ${result.emission?.toFixed(2) || 'N/A'} TAO`,
           `Registrations: ${result.registrations || 'N/A'}`
         ].join("\n");
@@ -419,29 +356,16 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error getting subnet info: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error retrieving subnet information: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error getting subnet info: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error retrieving subnet information: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error getting subnet info: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error retrieving subnet information: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -458,22 +382,33 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
         logger.info(`Getting validator info for hotkey: ${hotkey}`);
         const result = await taostatsService.getValidatorInfo(hotkey);
         
-        // Format a nice response with key metrics
+        if (!result || !result.stake || typeof result.stake !== 'object') {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No information available for validator ${hotkey}.`,
+              },
+            ],
+          };
+        }
+        
+        // Format response with key metrics
         const response = [
-          result.summary,
+          result.summary || `No information available for validator ${hotkey}.`,
           "",
           "Validator Metrics:",
           "-----------------",
           `Total Stake: ${result.stake.total.toFixed(2)} TAO`,
-          `Self Stake: ${result.stake.selfStake.toFixed(2)} TAO (${((result.stake.selfStake / result.stake.total) * 100).toFixed(1)}%)`,
-          `Delegated Stake: ${result.stake.delegatedStake.toFixed(2)} TAO (${((result.stake.delegatedStake / result.stake.total) * 100).toFixed(1)}%)`,
+          `Self Stake: ${result.stake.selfStake.toFixed(2)} TAO (${(result.stake.total > 0 ? (result.stake.selfStake / result.stake.total) * 100 : 0).toFixed(1)}%)`,
+          `Delegated Stake: ${result.stake.delegatedStake.toFixed(2)} TAO (${(result.stake.total > 0 ? (result.stake.delegatedStake / result.stake.total) * 100 : 0).toFixed(1)}%)`,
           "",
           "Performance:",
           "-----------",
-          `Daily Earnings: ${result.performance.dailyEarnings?.toFixed(4) || 'N/A'} TAO`,
-          `Weekly Earnings: ${result.performance.weeklyEarnings?.toFixed(4) || 'N/A'} TAO`,
-          `Monthly Est. Earnings: ${result.performance.monthlyEarnings?.toFixed(4) || 'N/A'} TAO`,
-          `Uptime: ${result.performance.uptimePercent?.toFixed(1) || 'N/A'}%`
+          `Daily Earnings: ${result.performance?.dailyEarnings?.toFixed(4) || 'N/A'} TAO`,
+          `Weekly Earnings: ${result.performance?.weeklyEarnings?.toFixed(4) || 'N/A'} TAO`,
+          `Monthly Est. Earnings: ${result.performance?.monthlyEarnings?.toFixed(4) || 'N/A'} TAO`,
+          `Uptime: ${result.performance?.uptimePercent?.toFixed(1) || 'N/A'}%`
         ].join("\n");
         
         return {
@@ -485,29 +420,16 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error getting validator info: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error retrieving validator information: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error getting validator info: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error retrieving validator information: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error getting validator info: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error retrieving validator information: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -524,12 +446,29 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
         logger.info(`Getting top ${limit} validators`);
         const result = await taostatsService.getTopValidators(limit);
         
-        // Format a nice response with summary and top validators
-        let response = result.summary + "\n\nTop Validators:\n--------------\n";
+        if (!result || !result.validators || !Array.isArray(result.validators)) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No validator data available.",
+              },
+            ],
+          };
+        }
         
-        result.validators.forEach((validator, index) => {
-          response += `${index + 1}. ${validator.name} - ${validator.stake.toFixed(2)} TAO\n`;
-        });
+        // Format response with summary and top validators
+        let response = (result.summary || "Top validators by stake:") + "\n\nTop Validators:\n--------------\n";
+        
+        if (result.validators.length === 0) {
+          response += "No validators found.";
+        } else {
+          result.validators.forEach((validator, index) => {
+            if (validator && typeof validator === 'object') {
+              response += `${index + 1}. ${validator.name || "Unknown"} - ${validator.stake?.toFixed(2) || "0.00"} TAO\n`;
+            }
+          });
+        }
         
         return {
           content: [
@@ -540,29 +479,16 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error getting top validators: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error retrieving top validators: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error getting top validators: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error retrieving top validators: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error getting top validators: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error retrieving top validators: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -577,16 +503,27 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
         logger.info("Getting Bittensor network stats");
         const result = await taostatsService.getNetworkStats();
         
-        // Format a nice response with key metrics
+        if (!result || typeof result !== 'object') {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "No network statistics available.",
+              },
+            ],
+          };
+        }
+        
+        // Format response with key metrics
         const response = [
-          result.summary,
+          result.summary || "No network statistics available.",
           "",
           "Network Metrics:",
           "---------------",
-          `Total Supply: ${result.totalSupply?.toFixed(2) || 'N/A'} TAO`,
+          `Total Supply: ${result.totalSupply?.toFixed(2) || '0.00'} TAO`,
           `Active Validators: ${result.activeValidators || 'N/A'}`,
           `Total Subnets: ${result.totalSubnets || 'N/A'}`,
-          `Market Cap: $${result.marketCap?.toFixed(2) || 'N/A'}`
+          `Market Cap: $${result.marketCap?.toFixed(2) || '0.00'}`
         ].join("\n");
         
         return {
@@ -598,29 +535,16 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error getting network stats: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error retrieving network statistics: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error getting network stats: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error retrieving network statistics: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error getting network stats: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error retrieving network statistics: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -637,9 +561,20 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
         logger.info(`Getting delegator info for coldkey: ${coldkey}`);
         const result = await taostatsService.getDelegatorInfo(coldkey);
         
-        // Format a nice response with key metrics
+        if (!result || typeof result !== 'object') {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `No delegation information found for coldkey ${coldkey}.`,
+              },
+            ],
+          };
+        }
+        
+        // Format response with key metrics
         let response = [
-          result.summary,
+          result.summary || `No delegation information found for coldkey ${coldkey}.`,
           "",
           "Delegation Metrics:",
           "------------------",
@@ -649,12 +584,14 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
         ].join("\n");
         
         // Add top 3 delegations if available
-        if (result.delegations && result.delegations.length > 0) {
+        if (result.delegations && Array.isArray(result.delegations) && result.delegations.length > 0) {
           response += "\n\nTop Delegations:\n--------------\n";
           
           const topDelegations = result.delegations.slice(0, 3).map((d: any, i: number) => {
+            if (!d || typeof d !== 'object') return `${i + 1}. N/A`;
             const amount = d.balance_raw ? (d.balance_raw / 1e9).toFixed(2) : '0.00';
-            return `${i + 1}. ${amount} TAO to ${d.hotkey.substring(0, 10)}...`;
+            const hotkey = d.hotkey ? d.hotkey.substring(0, 10) : 'unknown';
+            return `${i + 1}. ${amount} TAO to ${hotkey}...`;
           }).join("\n");
           
           response += topDelegations;
@@ -669,29 +606,16 @@ Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}
           ],
         };
       } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error getting delegator info: ${error.message}`);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error retrieving delegator information: ${error.message}`,
-              },
-            ],
-            isError: true,
-          };
-        } else {
-          logger.error("Error getting delegator info: Unknown error");
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Error retrieving delegator information: Unknown error",
-              },
-            ],
-            isError: true,
-          };
-        }
+        logger.error(`Error getting delegator info: ${error instanceof Error ? error.message : "Unknown error"}`);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error retrieving delegator information: ${error instanceof Error ? error.message : "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        };
       }
     }
   );
@@ -702,12 +626,14 @@ const transportType = process.env.MCP_TRANSPORT_TYPE?.toLowerCase() || "stdio";
 
 async function main() {
   try {
+    logger.info("[blockchain-data] Initializing server...");
+    
     if (transportType === "stdio") {
       // Use stdio transport
       logger.info("Starting MCP server with stdio transport");
       const transport = new StdioServerTransport();
       await server.connect(transport);
-      logger.info("MCP server connected with stdio transport");
+      logger.info("[blockchain-data] Server started and connected successfully");
     } else if (transportType === "http") {
       // Use HTTP transport with SSE
       const port = parseInt(process.env.MCP_HTTP_PORT || "3030");
@@ -727,7 +653,12 @@ async function main() {
       
       app.post("/messages", async (req, res) => {
         if (transport) {
-          await transport.handlePostMessage(req, res);
+          try {
+            await transport.handlePostMessage(req, res);
+          } catch (error) {
+            logger.error(`Error handling message: ${error instanceof Error ? error.message : "Unknown error"}`);
+            res.status(500).send("Error processing message");
+          }
         } else {
           res.status(400).send("No active SSE connection");
         }
@@ -741,21 +672,13 @@ async function main() {
       process.exit(1);
     }
   } catch (error) {
-    if (error instanceof Error) {
-      logger.error(`Error starting MCP server: ${error.message}`);
-    } else {
-      logger.error("Error starting MCP server: Unknown error");
-    }
+    logger.error(`Error starting MCP server: ${error instanceof Error ? error.message : "Unknown error"}`);
     process.exit(1);
   }
 }
 
 // Start the server
 main().catch((error) => {
-  if (error instanceof Error) {
-    logger.error(`Unhandled error: ${error.message}`);
-  } else {
-    logger.error("Unhandled error: Unknown error");
-  }
+  logger.error(`Unhandled error: ${error instanceof Error ? error.message : "Unknown error"}`);
   process.exit(1);
 });

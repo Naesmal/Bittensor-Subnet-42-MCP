@@ -14,8 +14,9 @@ export const logger = winston.createLogger({
   ),
   defaultMeta: { service: "mcp-blockchain-server" },
   transports: [
-    // Console output
+    // Console output - TOUS les niveaux de logs sont dirigés vers stderr
     new winston.transports.Console({
+      stderrLevels: ['error', 'warn', 'info', 'verbose', 'debug', 'silly'],
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.printf(

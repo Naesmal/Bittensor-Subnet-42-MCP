@@ -54,20 +54,21 @@ export class TaostatsService {
         },
       });
       
-      const history = response.data || [];
+      // Properly handle the case where response.data might be null or not an array
+      const history = Array.isArray(response.data) ? response.data : [];
       const currentPrice = history.length > 0 ? history[0] : null;
       
-      // Convert RAO to TAO for better readability
+      // Process data safely with null checks
       const processedHistory = history.map((entry: any) => ({
-        price: entry.price ? entry.price / 1e9 : 0,
-        timestamp: entry.timestamp,
-        priceChange24h: entry.price_change_24h ? entry.price_change_24h / 1e9 : 0,
-        percentChange24h: entry.percent_change_24h || 0
+        price: entry && entry.price ? entry.price / 1e9 : 0,
+        timestamp: entry && entry.timestamp ? entry.timestamp : 0,
+        priceChange24h: entry && entry.price_change_24h ? entry.price_change_24h / 1e9 : 0,
+        percentChange24h: entry && entry.percent_change_24h ? entry.percent_change_24h : 0
       }));
 
       const processedCurrentPrice = currentPrice ? {
-        price: currentPrice.price / 1e9,
-        timestamp: currentPrice.timestamp,
+        price: currentPrice.price ? currentPrice.price / 1e9 : 0,
+        timestamp: currentPrice.timestamp || 0,
         priceChange24h: currentPrice.price_change_24h ? currentPrice.price_change_24h / 1e9 : 0,
         percentChange24h: currentPrice.percent_change_24h || 0
       } : null;
@@ -97,13 +98,8 @@ export class TaostatsService {
         summary
       };
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`TAO price error: ${error.message}`);
-        throw new Error(`Failed to get TAO price: ${error.message}`);
-      } else {
-        logger.error("TAO price error: Unknown error");
-        throw new Error("Failed to get TAO price: Unknown error");
-      }
+      logger.error(`TAO price error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to get TAO price: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   
@@ -141,8 +137,13 @@ export class TaostatsService {
         },
       });
       
-      const subnetInfo = subnetResponse.data.length > 0 ? subnetResponse.data[0] : null;
-      const poolInfo = poolResponse.data.length > 0 ? poolResponse.data[0] : null;
+      // Safely handle response data
+      const subnetData = Array.isArray(subnetResponse.data) ? subnetResponse.data : [];
+      const historyData = Array.isArray(historyResponse.data) ? historyResponse.data : [];
+      const poolData = Array.isArray(poolResponse.data) ? poolResponse.data : [];
+      
+      const subnetInfo = subnetData.length > 0 ? subnetData[0] : null;
+      const poolInfo = poolData.length > 0 ? poolData[0] : null;
       
       // Generate a human-readable summary
       let summary = `No information available for subnet ${netuid}.`;
@@ -163,9 +164,9 @@ export class TaostatsService {
           summary += ` The subnet has an alpha price of ${alphaPrice.toFixed(6)} TAO.`;
         }
         
-        if (historyResponse.data && historyResponse.data.length > 0) {
-          const oldestEntry = historyResponse.data[historyResponse.data.length - 1];
-          const oldValidators = oldestEntry.n || 0;
+        if (historyData.length > 0) {
+          const oldestEntry = historyData[historyData.length - 1];
+          const oldValidators = oldestEntry && oldestEntry.n ? oldestEntry.n : 0;
           const validatorChange = activeValidators - oldValidators;
           
           if (validatorChange !== 0) {
@@ -177,7 +178,7 @@ export class TaostatsService {
       
       return {
         info: subnetInfo,
-        history: historyResponse.data,
+        history: historyData,
         pool: poolInfo,
         summary,
         emission,
@@ -185,13 +186,8 @@ export class TaostatsService {
         activeValidators
       };
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`Subnet info error: ${error.message}`);
-        throw new Error(`Failed to get subnet info: ${error.message}`);
-      } else {
-        logger.error("Subnet info error: Unknown error");
-        throw new Error("Failed to get subnet info: Unknown error");
-      }
+      logger.error(`Subnet info error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to get subnet info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   
@@ -231,8 +227,12 @@ export class TaostatsService {
         },
       });
       
-      const validatorInfo = validatorResponse.data.length > 0 ? validatorResponse.data[0] : null;
-      const delegations = delegationsResponse.data || [];
+      // Safely handle response data
+      const validatorData = Array.isArray(validatorResponse.data) ? validatorResponse.data : [];
+      const historyData = Array.isArray(historyResponse.data) ? historyResponse.data : [];
+      const delegationsData = Array.isArray(delegationsResponse.data) ? delegationsResponse.data : [];
+      
+      const validatorInfo = validatorData.length > 0 ? validatorData[0] : null;
       
       // Calculate stake information
       let totalStake = 0;
@@ -247,17 +247,17 @@ export class TaostatsService {
         totalStake = validatorInfo.stake_raw ? validatorInfo.stake_raw / 1e9 : 0;
         
         // Calculate self stake vs delegated stake
-        const selfDelegation = delegations.find((d: any) => 
-          d.coldkey === validatorInfo.owner
+        const selfDelegation = delegationsData.find((d: any) => 
+          d && d.coldkey === validatorInfo.owner
         );
         
-        selfStake = selfDelegation ? selfDelegation.balance_raw / 1e9 : 0;
+        selfStake = selfDelegation && selfDelegation.balance_raw ? selfDelegation.balance_raw / 1e9 : 0;
         delegatedStake = totalStake - selfStake;
         
         // Calculate earnings based on history if available
-        if (historyResponse.data && historyResponse.data.length > 0) {
-          const earnings = historyResponse.data.map((entry: any) => 
-            entry.rewards_raw ? entry.rewards_raw / 1e9 : 0
+        if (historyData.length > 0) {
+          const earnings = historyData.map((entry: any) => 
+            entry && entry.rewards_raw ? entry.rewards_raw / 1e9 : 0
           );
           
           dailyEarnings = earnings[0] || 0;
@@ -273,8 +273,8 @@ export class TaostatsService {
           }
           
           // Calculate uptime based on historical data
-          const uptimeEntries = historyResponse.data.filter((entry: any) => 
-            entry.active !== undefined
+          const uptimeEntries = historyData.filter((entry: any) => 
+            entry && entry.active !== undefined
           );
           
           if (uptimeEntries.length > 0) {
@@ -309,8 +309,8 @@ export class TaostatsService {
       
       return {
         info: validatorInfo,
-        history: historyResponse.data,
-        delegations,
+        history: historyData,
+        delegations: delegationsData,
         summary,
         stake: {
           total: totalStake,
@@ -325,13 +325,8 @@ export class TaostatsService {
         }
       };
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`Validator info error: ${error.message}`);
-        throw new Error(`Failed to get validator info: ${error.message}`);
-      } else {
-        logger.error("Validator info error: Unknown error");
-        throw new Error("Failed to get validator info: Unknown error");
-      }
+      logger.error(`Validator info error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to get validator info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   
@@ -352,7 +347,8 @@ export class TaostatsService {
         },
       });
       
-      const validators = response.data || [];
+      // Safely handle response data
+      const validators = Array.isArray(response.data) ? response.data : [];
       
       // Process validators into a more readable format
       const processedValidators = validators.map((v: any, index: number) => ({
@@ -385,13 +381,8 @@ export class TaostatsService {
         totalCount: processedValidators.length
       };
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`Top validators error: ${error.message}`);
-        throw new Error(`Failed to get top validators: ${error.message}`);
-      } else {
-        logger.error("Top validators error: Unknown error");
-        throw new Error("Failed to get top validators: Unknown error");
-      }
+      logger.error(`Top validators error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to get top validators: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   
@@ -416,8 +407,12 @@ export class TaostatsService {
         },
       });
       
-      const stats = statsResponse.data.length > 0 ? statsResponse.data[0] : null;
-      const price = priceResponse.data.length > 0 ? priceResponse.data[0] : null;
+      // Safely handle response data
+      const statsData = Array.isArray(statsResponse.data) ? statsResponse.data : [];
+      const priceData = Array.isArray(priceResponse.data) ? priceResponse.data : [];
+      
+      const stats = statsData.length > 0 ? statsData[0] : null;
+      const price = priceData.length > 0 ? priceData[0] : null;
       
       // Calculate derived metrics
       let totalSupply = 0;
@@ -465,13 +460,8 @@ export class TaostatsService {
         marketCap
       };
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`Network stats error: ${error.message}`);
-        throw new Error(`Failed to get network stats: ${error.message}`);
-      } else {
-        logger.error("Network stats error: Unknown error");
-        throw new Error("Failed to get network stats: Unknown error");
-      }
+      logger.error(`Network stats error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to get network stats: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
   
@@ -520,13 +510,14 @@ export class TaostatsService {
         },
       });
       
-      const delegations = delegationsResponse.data || [];
-      const events = eventsResponse.data || [];
-      const balanceHistory = balanceHistoryResponse.data || [];
+      // Safely handle response data
+      const delegations = Array.isArray(delegationsResponse.data) ? delegationsResponse.data : [];
+      const events = Array.isArray(eventsResponse.data) ? eventsResponse.data : [];
+      const balanceHistory = Array.isArray(balanceHistoryResponse.data) ? balanceHistoryResponse.data : [];
       
       // Calculate statistics
       const totalStaked = delegations.reduce((sum: number, d: any) => 
-        sum + (d.balance_raw ? d.balance_raw / 1e9 : 0), 0
+        sum + (d && d.balance_raw ? d.balance_raw / 1e9 : 0), 0
       );
       
       const totalValidators = delegations.length;
@@ -541,7 +532,7 @@ export class TaostatsService {
           const prev = balanceHistory[i-1];
           const curr = balanceHistory[i];
           
-          if (prev.balance_raw && curr.balance_raw) {
+          if (prev && prev.balance_raw && curr && curr.balance_raw) {
             const change = (prev.balance_raw - curr.balance_raw) / 1e9;
             // Only consider positive changes as potential rewards
             if (change > 0) {
@@ -565,10 +556,12 @@ export class TaostatsService {
         
         if (delegations.length > 0) {
           const topDelegation = delegations[0];
-          const topHotkey = topDelegation.hotkey;
-          const topAmount = topDelegation.balance_raw ? topDelegation.balance_raw / 1e9 : 0;
-          
-          summary += ` Largest delegation: ${topAmount.toFixed(2)} TAO to validator ${topHotkey.substring(0, 10)}...`;
+          if (topDelegation && topDelegation.hotkey) {
+            const topHotkey = topDelegation.hotkey;
+            const topAmount = topDelegation.balance_raw ? topDelegation.balance_raw / 1e9 : 0;
+            
+            summary += ` Largest delegation: ${topAmount.toFixed(2)} TAO to validator ${topHotkey.substring(0, 10)}...`;
+          }
         }
         
         if (recentRewards > 0) {
@@ -577,12 +570,14 @@ export class TaostatsService {
         
         if (events.length > 0) {
           const latestEvent = events[0];
-          const eventType = latestEvent.extrinsic_name || "unknown event";
-          const eventTime = latestEvent.block_timestamp 
-            ? new Date(latestEvent.block_timestamp * 1000).toLocaleDateString() 
-            : "unknown date";
-          
-          summary += ` Latest delegation activity: ${eventType} on ${eventTime}.`;
+          if (latestEvent) {
+            const eventType = latestEvent.extrinsic_name || "unknown event";
+            const eventTime = latestEvent.block_timestamp 
+              ? new Date(latestEvent.block_timestamp * 1000).toLocaleDateString() 
+              : "unknown date";
+            
+            summary += ` Latest delegation activity: ${eventType} on ${eventTime}.`;
+          }
         }
       }
       
@@ -596,13 +591,8 @@ export class TaostatsService {
         recentRewards
       };
     } catch (error) {
-      if (error instanceof Error) {
-        logger.error(`Delegator info error: ${error.message}`);
-        throw new Error(`Failed to get delegator info: ${error.message}`);
-      } else {
-        logger.error("Delegator info error: Unknown error");
-        throw new Error("Failed to get delegator info: Unknown error");
-      }
+      logger.error(`Delegator info error: ${error instanceof Error ? error.message : "Unknown error"}`);
+      throw new Error(`Failed to get delegator info: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 }
