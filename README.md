@@ -44,8 +44,8 @@ A Model Context Protocol (MCP) server providing access to Masa and Bittensor blo
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/Naesmal/mcp-blockchain-server.git
-cd mcp-blockchain-server
+git clone https://github.com/Naesmal/Bittensor-Subnet-42-MCP.git
+cd Bittensor-Subnet-42-MCP
 ```
 
 2. Install dependencies:
