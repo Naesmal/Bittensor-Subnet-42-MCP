@@ -1,44 +1,13 @@
-## Modular API Integration
+# MCP Blockchain Data Server
 
-This server is designed to be modular, allowing you to use Masa API, Taostats API, or both:
-
-### Using Masa API Only
-
-Set in your `.env` file:
-```
-ENABLE_MASA=true
-ENABLE_TAOSTATS=false
-MASA_API_KEY=your_masa_api_key_here
-```
-
-### Using Taostats API Only
-
-Set in your `.env` file:
-```
-ENABLE_MASA=false
-ENABLE_TAOSTATS=true
-TAO_STAT_API_KEY=your_taostats_api_key_here
-```
-
-### Using Both APIs
-
-Set in your `.env` file:
-```
-ENABLE_MASA=true
-ENABLE_TAOSTATS=true
-MASA_API_KEY=your_masa_api_key_here
-TAO_STAT_API_KEY=your_taostats_api_key_here
-```
-
-You only need to provide API keys for the services you enable. Each set of tools will be registered only if the corresponding service is enabled.# MCP Blockchain Data Server
-
-A Model Context Protocol (MCP) server providing access to Masa and Bittensor blockchain data through a unified interface.
+A Model Context Protocol (MCP) server providing access to Masa and Bittensor blockchain data through a unified interface, with LLM-optimized responses.
 
 ## Features
 
 - **Modular API Support**: Enable/disable Masa and Bittensor APIs independently
 - **Smart Rate Limiting**: Respects API rate limits to prevent service disruption
 - **Multiple Transport Options**: Supports stdio and HTTP/SSE transports
+- **LLM-Optimized Output**: Provides structured, human-readable summaries for each data point
 - **Comprehensive Tools**: Provides a wide range of blockchain data access tools
 - **Modular Design**: Clean separation of services and utilities
 - **Detailed Logging**: Configurable logging levels for debugging and monitoring
@@ -48,20 +17,20 @@ A Model Context Protocol (MCP) server providing access to Masa and Bittensor blo
 
 ### Masa Tools
 
-- **Twitter Search**: Search for recent tweets on specific topics
-- **Web Scraper**: Extract content from web pages
-- **Search Term Extraction**: AI-powered extraction of relevant search terms
-- **Tweet Analysis**: Analyze tweets with custom prompts
-- **Similarity Search**: Find semantically similar tweets
+- **Twitter Search**: Search for recent tweets with automatic sentiment analysis
+- **Web Scraper**: Extract content from web pages with summary and metrics
+- **Search Term Extraction**: AI-powered extraction of relevant search terms with explanation
+- **Tweet Analysis**: Analyze tweets with custom prompts and sentiment detection
+- **Similarity Search**: Find semantically similar tweets with ranking
 
 ### Bittensor Tools
 
-- **TAO Price**: Get current and historical TAO token prices
-- **Subnet Information**: Detailed data about specific subnets
-- **Validator Information**: Comprehensive validator statistics and history
-- **Top Validators**: List top validators by stake
-- **Network Statistics**: Overall Bittensor network stats
-- **Delegator Information**: Data about delegations for specific coldkeys
+- **TAO Price**: Current and historical TAO token prices with trend analysis
+- **Subnet Information**: Detailed subnet data with active validators, emissions, and historical changes
+- **Validator Information**: Comprehensive validator statistics with earnings estimates and uptime stats
+- **Top Validators**: Ranked list of top validators with performance metrics
+- **Network Statistics**: Overall Bittensor network stats with market insights
+- **Delegator Information**: Complete delegation data with reward estimates
 
 ## Installation
 
@@ -75,7 +44,7 @@ A Model Context Protocol (MCP) server providing access to Masa and Bittensor blo
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/mcp-blockchain-server.git
+git clone https://github.com/Naesmal/mcp-blockchain-server.git
 cd mcp-blockchain-server
 ```
 
@@ -118,6 +87,40 @@ The server is configured using environment variables, which can be set in a `.en
 | `MCP_HTTP_HOST` | HTTP server host | `localhost` |
 | `LOG_LEVEL` | Logging level | `info` |
 
+## Modular API Integration
+
+This server is designed to be modular, allowing you to use Masa API, Taostats API, or both:
+
+### Using Masa API Only
+
+Set in your `.env` file:
+```
+ENABLE_MASA=true
+ENABLE_TAOSTATS=false
+MASA_API_KEY=your_masa_api_key_here
+```
+
+### Using Taostats API Only
+
+Set in your `.env` file:
+```
+ENABLE_MASA=false
+ENABLE_TAOSTATS=true
+TAO_STAT_API_KEY=your_taostats_api_key_here
+```
+
+### Using Both APIs
+
+Set in your `.env` file:
+```
+ENABLE_MASA=true
+ENABLE_TAOSTATS=true
+MASA_API_KEY=your_masa_api_key_here
+TAO_STAT_API_KEY=your_taostats_api_key_here
+```
+
+You only need to provide API keys for the services you enable. Each set of tools will be registered only if the corresponding service is enabled.
+
 ## Usage
 
 ### Running the Server
@@ -157,11 +160,7 @@ Add the following configuration:
       "command": "node",
       "args": [
         "/absolute/path/to/dist/index.js"
-      ],
-      "env": {
-        "MASA_API_KEY": "your_masa_api_key",
-        "TAO_STAT_API_KEY": "your_taostats_api_key"
-      }
+      ]
     }
   }
 }
@@ -173,31 +172,29 @@ Restart Claude Desktop to apply the changes.
 
 Here are some example prompts you can use with Claude Desktop after connecting:
 
-- "What is the current price of TAO token?"
-- "Show me information about Bittensor subnet 1"
-- "Who are the top 5 validators on Bittensor right now?"
-- "Get the latest tweets about 'AI research' and analyze the sentiment"
-- "Show the delegations for coldkey 5CA7zFakdjXtJRcz4gZ4MZaAwbEqDnW9WZeaqLRdTrejAs8w"
+- "What is the current price of TAO token and how has it changed recently?"
+- "Show me detailed information about Bittensor subnet 1"
+- "Who are the top 5 validators on Bittensor right now and what are their earnings?"
+- "Get the latest tweets about 'AI and blockchain' and analyze the sentiment"
+- "Show all the delegations for coldkey 5CA7zFakdjXtJRcz4gZ4MZaAwbEqDnW9WZeaqLRdTrejAs8w"
 - "What's the overall Bittensor network statistics today?"
+- "Can you find tweets semantically similar to 'decentralized AI networks'?"
+- "Analyze these tweets and tell me the sentiment: [paste tweets here]"
+
+## LLM-Optimized Features
+
+This server provides several features specifically designed to enhance LLM interactions:
+
+1. **Automatic Summarization**: Every API response includes a human-readable summary suitable for LLM consumption
+2. **Data Contextualization**: Numbers and metrics are presented with context (e.g., percent changes, trends)
+3. **Sentiment Analysis**: Automatic sentiment detection in Twitter content
+4. **Structured Output**: Hierarchical, well-formatted data presentation optimized for LLM interpretation
+5. **Keyword Extraction**: Identification of additional relevant search terms
+6. **Rich Metrics**: Performance indicators, statistics and comparative data presented in digestible formats
+
+These optimizations allow LLMs to better understand and effectively communicate the data to end users.
 
 ## Development
-
-### Project Structure
-
-```
-├── src/
-│   ├── index.ts              # Main entry point
-│   ├── services/             # API service implementations
-│   │   ├── masa-service.ts   # Masa API client
-│   │   └── taostats-service.ts # Taostats API client
-│   └── utils/                # Utility functions
-│       ├── logger.ts         # Logging utility
-│       └── rate-limiter.ts   # Rate limiting utility
-├── .env.example              # Example environment variables
-├── package.json              # Project metadata and dependencies
-├── tsconfig.json             # TypeScript configuration
-└── README.md                 # Documentation
-```
 
 ### Running in Development Mode
 
@@ -231,16 +228,6 @@ The server implements token bucket rate limiting to respect API rate limits:
 - Taostats API: Default limit is 5 requests per minute (configurable via `TAO_STAT_MINUTE_LIMIT`)
 
 Rate limits are enforced per API service and requests will queue automatically when limits are reached.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ## License
 

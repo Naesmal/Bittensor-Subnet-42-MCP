@@ -78,7 +78,7 @@ if (masaService) {
           content: [
             {
               type: "text",
-              text: JSON.stringify(results, null, 2),
+              text: `${results.summary}\n\n${JSON.stringify(results.results, null, 2)}`,
             },
           ],
         };
@@ -127,7 +127,9 @@ if (masaService) {
           content: [
             {
               type: "text",
-              text: format === "text" ? result.content : JSON.stringify(result, null, 2),
+              text: format === "text" 
+                ? `${result.summary}\n\n${result.content}` 
+                : `${result.summary}\n\n${JSON.stringify(result, null, 2)}`,
             },
           ],
         };
@@ -171,11 +173,21 @@ if (masaService) {
         logger.info(`Extracting search terms from: ${userInput}`);
         const result = await masaService.extractSearchTerms(userInput);
         
+        // Format a nice response with the main term highlighted
+        let formattedResponse = result.summary;
+        
+        if (result.additionalTerms && result.additionalTerms.length > 0) {
+          formattedResponse += "\n\nAdditional search terms you might consider:";
+          result.additionalTerms.forEach(term => {
+            formattedResponse += `\n- ${term}`;
+          });
+        }
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: formattedResponse,
             },
           ],
         };
@@ -206,6 +218,105 @@ if (masaService) {
       }
     }
   );
+  
+  // Register tweet analysis tool
+  server.tool(
+    "masa_analyze_tweets",
+    "Analyze tweets with a custom prompt",
+    {
+      tweets: z.string().describe("String containing the tweets to analyze"),
+      prompt: z.string().describe("Analysis prompt (e.g., 'Analyze the sentiment of these tweets')"),
+    },
+    async ({ tweets, prompt }) => {
+      try {
+        logger.info(`Analyzing tweets with prompt: ${prompt}`);
+        const result = await masaService.analyzeTweets(tweets, prompt);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${result.summary}\n\n${result.result}`,
+            },
+          ],
+        };
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error(`Error in tweet analysis: ${error.message}`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error analyzing tweets: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        } else {
+          logger.error("Error in tweet analysis: Unknown error");
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Error analyzing tweets: Unknown error",
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    }
+  );
+  
+  // Register similarity search tool
+  server.tool(
+    "masa_similarity_search",
+    "Find tweets semantically similar to a query",
+    {
+      query: z.string().describe("The search query"),
+      keywords: z.array(z.string()).optional().describe("Optional list of keywords to include"),
+      max_results: z.number().optional().describe("Maximum number of results to return (max 100)"),
+    },
+    async ({ query, keywords, max_results = 50 }) => {
+      try {
+        logger.info(`Running similarity search for query: ${query}`);
+        const results = await masaService.searchSimilarTweets(query, keywords, max_results);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: `${results.summary}\n\n${JSON.stringify(results.results, null, 2)}`,
+            },
+          ],
+        };
+      } catch (error) {
+        if (error instanceof Error) {
+          logger.error(`Error in similarity search: ${error.message}`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error searching similar tweets: ${error.message}`,
+              },
+            ],
+            isError: true,
+          };
+        } else {
+          logger.error("Error in similarity search: Unknown error");
+          return {
+            content: [
+              {
+                type: "text",
+                text: "Error searching similar tweets: Unknown error",
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+    }
+  );
 }
 
 // Register Taostats tools if enabled
@@ -222,11 +333,24 @@ if (taostatsService) {
         logger.info(`Getting TAO price history for ${days} days`);
         const result = await taostatsService.getTaoPrice(days);
         
+        // Create a more readable response with the summary followed by formatted data
+        const response = [
+          result.summary,
+          "",
+          "Current Price Details:",
+          `--------------`,
+          result.currentPrice ? 
+            `Price: $${result.currentPrice.price.toFixed(2)}
+Change (24h): ${result.currentPrice.percentChange24h >= 0 ? '+' : ''}${result.currentPrice.percentChange24h.toFixed(2)}%
+Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}` :
+            "No current price data available"
+        ].join("\n");
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: response,
             },
           ],
         };
@@ -270,11 +394,22 @@ if (taostatsService) {
         logger.info(`Getting subnet info for netuid: ${netuid}`);
         const result = await taostatsService.getSubnetInfo(netuid);
         
+        // Format a nice response with key metrics
+        const response = [
+          result.summary,
+          "",
+          "Subnet Metrics:",
+          "--------------",
+          `Active Validators: ${result.activeValidators}`,
+          `Daily Emission: ${result.emission?.toFixed(2) || 'N/A'} TAO`,
+          `Registrations: ${result.registrations || 'N/A'}`
+        ].join("\n");
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: response,
             },
           ],
         };
@@ -318,11 +453,29 @@ if (taostatsService) {
         logger.info(`Getting validator info for hotkey: ${hotkey}`);
         const result = await taostatsService.getValidatorInfo(hotkey);
         
+        // Format a nice response with key metrics
+        const response = [
+          result.summary,
+          "",
+          "Validator Metrics:",
+          "-----------------",
+          `Total Stake: ${result.stake.total.toFixed(2)} TAO`,
+          `Self Stake: ${result.stake.selfStake.toFixed(2)} TAO (${((result.stake.selfStake / result.stake.total) * 100).toFixed(1)}%)`,
+          `Delegated Stake: ${result.stake.delegatedStake.toFixed(2)} TAO (${((result.stake.delegatedStake / result.stake.total) * 100).toFixed(1)}%)`,
+          "",
+          "Performance:",
+          "-----------",
+          `Daily Earnings: ${result.performance.dailyEarnings?.toFixed(4) || 'N/A'} TAO`,
+          `Weekly Earnings: ${result.performance.weeklyEarnings?.toFixed(4) || 'N/A'} TAO`,
+          `Monthly Est. Earnings: ${result.performance.monthlyEarnings?.toFixed(4) || 'N/A'} TAO`,
+          `Uptime: ${result.performance.uptimePercent?.toFixed(1) || 'N/A'}%`
+        ].join("\n");
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: response,
             },
           ],
         };
@@ -366,11 +519,18 @@ if (taostatsService) {
         logger.info(`Getting top ${limit} validators`);
         const result = await taostatsService.getTopValidators(limit);
         
+        // Format a nice response with summary and top validators
+        let response = result.summary + "\n\nTop Validators:\n--------------\n";
+        
+        result.validators.forEach((validator, index) => {
+          response += `${index + 1}. ${validator.name} - ${validator.stake.toFixed(2)} TAO\n`;
+        });
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: response,
             },
           ],
         };
@@ -412,11 +572,23 @@ if (taostatsService) {
         logger.info("Getting Bittensor network stats");
         const result = await taostatsService.getNetworkStats();
         
+        // Format a nice response with key metrics
+        const response = [
+          result.summary,
+          "",
+          "Network Metrics:",
+          "---------------",
+          `Total Supply: ${result.totalSupply?.toFixed(2) || 'N/A'} TAO`,
+          `Active Validators: ${result.activeValidators || 'N/A'}`,
+          `Total Subnets: ${result.totalSubnets || 'N/A'}`,
+          `Market Cap: $${result.marketCap?.toFixed(2) || 'N/A'}`
+        ].join("\n");
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: response,
             },
           ],
         };
@@ -460,11 +632,34 @@ if (taostatsService) {
         logger.info(`Getting delegator info for coldkey: ${coldkey}`);
         const result = await taostatsService.getDelegatorInfo(coldkey);
         
+        // Format a nice response with key metrics
+        let response = [
+          result.summary,
+          "",
+          "Delegation Metrics:",
+          "------------------",
+          `Total Staked: ${result.totalStaked?.toFixed(2) || 'N/A'} TAO`,
+          `Validators: ${result.totalValidators || 'N/A'}`,
+          `Est. Daily Rewards: ${result.recentRewards?.toFixed(4) || 'N/A'} TAO`
+        ].join("\n");
+        
+        // Add top 3 delegations if available
+        if (result.delegations && result.delegations.length > 0) {
+          response += "\n\nTop Delegations:\n--------------\n";
+          
+          const topDelegations = result.delegations.slice(0, 3).map((d: any, i: number) => {
+            const amount = d.balance_raw ? (d.balance_raw / 1e9).toFixed(2) : '0.00';
+            return `${i + 1}. ${amount} TAO to ${d.hotkey.substring(0, 10)}...`;
+          }).join("\n");
+          
+          response += topDelegations;
+        }
+        
         return {
           content: [
             {
               type: "text",
-              text: JSON.stringify(result, null, 2),
+              text: response,
             },
           ],
         };
