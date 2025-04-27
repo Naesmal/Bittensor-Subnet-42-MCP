@@ -8,10 +8,15 @@ import dotenv from "dotenv";
 import { logger } from "./utils/logger.js";
 import { MasaService } from "./services/masa-service.js";
 import { TaostatsService } from "./services/taostats-service.js";
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Load environment variables
-dotenv.config();
+// Obtenir le répertoire actuel en utilisant ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
+// Configurer dotenv avec le chemin du fichier .env dans le dossier parent
+dotenv.config({ path: path.join(__dirname, '..', '.env') });
 // Create MCP server instance
 const server = new McpServer({
   name: process.env.MCP_SERVER_NAME || "Blockchain Data Provider",
