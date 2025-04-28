@@ -52,9 +52,10 @@ export class TaostatsService {
     
     try {
       const limit = Math.min(days, 30); // Limit to 30 days for reasonable response size
-      const response = await this.client.get(`/api/price_du_tao/v1`, {
+      const response = await this.client.get(`/api/price/history/v1`, {
         params: {
-          per_page: limit,
+          asset: "tao",
+          limit: limit, // Changed from per_page to limit
         },
       });
       
@@ -135,13 +136,14 @@ export class TaostatsService {
     
     try {
       // Get general network stats
-      const statsResponse = await this.client.get(`/api/statistiques_generales/v1`);
+      const statsResponse = await this.client.get(`/api/stats/latest/v1`);
       
       // Get current TAO price for market cap calculation
       await this.rateLimiter.acquire();
-      const priceResponse = await this.client.get(`/api/prix_du_tao/v1`, {
+      const priceResponse = await this.client.get(`/api/price/history/v1`, {
         params: {
-          per_page: 1,
+          asset: "tao",
+          limit: 1, // Changed from per_page to limit
         },
       });
       
@@ -221,9 +223,10 @@ export class TaostatsService {
     await this.rateLimiter.acquire();
     
     try {
-      const response = await this.client.get(`/api/liste_des_validateurs/v1`, {
+      const response = await this.client.get(`/api/validator/latest/v1`, {
         params: {
-          per_page: Math.min(limit, 75), // API seems to max out at 75 validators
+          limit: Math.min(limit, 75), // API seems to max out at 75 validators. Changed from per_page to limit
+          order: "stake_desc"
         },
       });
       
@@ -318,20 +321,29 @@ export class TaostatsService {
     await this.rateLimiter.acquire();
     
     try {
-      // Get current subnet info
-      const subnetResponse = await this.client.get(`/api/informations_subnet_${netuid}/v1`);
+      // Get current subnet info - the param is part of the query, not the path
+      const subnetResponse = await this.client.get(`/api/subnet/latest/v1`, {
+        params: {
+          netuid: netuid,
+        },
+      });
       
       // Get subnet history
       await this.rateLimiter.acquire();
-      const historyResponse = await this.client.get(`/api/historique_subnet_${netuid}/v1`, {
+      const historyResponse = await this.client.get(`/api/subnet/history/v1`, {
         params: {
-          per_page: 7, // Get 7 days of history
+          netuid: netuid,
+          limit: 7, // Changed from per_page to limit for Get 7 days of history
         },
       });
       
       // Get pool information if applicable
       await this.rateLimiter.acquire();
-      const poolResponse = await this.client.get(`/api/informations_pool_subnet_${netuid}/v1`);
+      const poolResponse = await this.client.get(`/api/dtao/pool/latest/v1`, {
+        params: {
+          netuid: netuid,
+        },
+      });
       
       // The structure follows {pagination: {...}, data: [...]} 
       const subnetData = subnetResponse.data?.data || [];
@@ -419,7 +431,7 @@ export class TaostatsService {
     
     try {
       // Get basic validator info
-      const validatorResponse = await this.client.get(`/api/informations_validateur/v1`, {
+      const validatorResponse = await this.client.get(`/api/validator/latest/v1`, {
         params: {
           hotkey,
         },
@@ -427,18 +439,20 @@ export class TaostatsService {
       
       // Get validator history
       await this.rateLimiter.acquire();
-      const historyResponse = await this.client.get(`/api/historique_validateur/v1`, {
+      const historyResponse = await this.client.get(`/api/validator/history/v1`, {
         params: {
           hotkey,
-          per_page: 14, // 14 days of history
+          limit: 14, // Changed from per_page to limit for 14 days of history
         },
       });
       
       // Get delegations for this validator
       await this.rateLimiter.acquire();
-      const delegationsResponse = await this.client.get(`/api/delegations_validateur/v1`, {
+      const delegationsResponse = await this.client.get(`/api/dtao/stake_balance/latest/v1`, {
         params: {
           hotkey,
+          limit: 100, // Changed from per_page to limit
+          order: "balance_desc"
         },
       });
       
@@ -548,25 +562,35 @@ export class TaostatsService {
     
     try {
       // Get delegations from this coldkey
-      const delegationsResponse = await this.client.get(`/api/delegations_coldkey/v1`, {
+      const delegationsResponse = await this.client.get(`/api/dtao/stake_balance/latest/v1`, {
         params: {
           coldkey,
+          limit: 200, // Changed from per_page to limit
         },
       });
       
       // Get delegation events
       await this.rateLimiter.acquire();
-      const eventsResponse = await this.client.get(`/api/evenements_delegation/v1`, {
+      const eventsResponse = await this.client.get(`/api/delegation/v1`, {
         params: {
-          coldkey,
+          nominator: coldkey, // This is correct - using nominator instead of coldkey
+          limit: 100, // Changed from per_page to limit
+          order: "block_number_desc"
         },
       });
       
       // Get balance history
-      await this.rateLimiter.acquire();      
-      const balanceHistoryResponse = await this.client.get(`/api/historique_soldes/v1`, {
+      await this.rateLimiter.acquire();
+      // Calculate timestamps for start and end (30 days)
+      const now = Math.floor(Date.now() / 1000);
+      const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
+      
+      const balanceHistoryResponse = await this.client.get(`/api/account/history/v1`, {
         params: {
           address: coldkey,
+          timestamp_start: thirtyDaysAgo,
+          timestamp_end: now,
+          limit: 30, // Changed from per_page to limit
         },
       });
       

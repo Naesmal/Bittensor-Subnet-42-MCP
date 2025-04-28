@@ -36,3 +36,5 @@ coverage/
 # Temp files
 tmp/
 temp/
+
+*test*
