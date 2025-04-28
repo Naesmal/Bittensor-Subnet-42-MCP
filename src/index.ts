@@ -138,20 +138,16 @@ if (masaService) {
             
             let responseText = `${results.summary || ''}\n\n`;
             
-            // Add sample tweets
+            // Add all tweets instead of just 3 samples
             if (Array.isArray(results.results) && results.results.length > 0) {
-              responseText += `SAMPLE TWEETS:\n\n`;
+              responseText += `ALL TWEETS (${numResults}):\n\n`;
               
-              for (let i = 0; i < Math.min(3, results.results.length); i++) {
+              // Loop through all results without limiting to 3
+              for (let i = 0; i < results.results.length; i++) {
                 responseText += `--- Tweet ${i+1} ---\n`;
                 const tweetContent = results.results[i].Content || results.results[i].text || 'Content not available';
                 responseText += `${tweetContent}\n\n`;
               }
-            }
-            
-            // Add link to full results
-            if (numResults !== 'Unknown' && numResults > 3) {
-              responseText += `...\n\n(${numResults - 3} other tweets not displayed)\n\n`;
             }
             
             logger.info(`\n${"=".repeat(50)}`);
