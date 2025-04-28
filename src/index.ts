@@ -60,128 +60,147 @@ if (!masaService && !taostatsService) {
 // Register Masa tools if enabled
 if (masaService) {
 // Step 1: Initiate a Twitter search and get a job ID
-server.tool(
-  "masa_twitter_search_start",
-  "Start a Twitter search job and get a job ID",
-  {
-    query: z.string().describe("Twitter search query (e.g., keywords, hashtags, or user mentions)"),
-    max_results: z.number().optional().describe("Maximum number of results to return (max 100)"),
-  },
-  async ({ query, max_results = 10 }) => {
-    try {
-      logger.info(`Starting Twitter search job for query: ${query}`);
-      const searchResult = await masaService.searchTwitter(query, max_results);
-      
-      if (typeof searchResult === 'string') {
+// Complete workflow in one tool
+
+  server.tool(
+    "masa_twitter_search_complete",
+    "Search Twitter and get results in one step (with internal waiting)",
+    {
+      query: z.string().describe("Twitter search query (e.g., keywords, hashtags, or user mentions)"),
+      max_results: z.number().optional().describe("Maximum number of results to return (max 100)"),
+      max_wait_seconds: z.number().optional().describe("Maximum time to wait for results in seconds (default: 30)"),
+    },
+    async ({ query, max_results = 10, max_wait_seconds = 30 }) => {
+      try {
+        logger.info(`${"=".repeat(50)}`);
+        logger.info(`STARTING TWITTER SEARCH WORKFLOW`);
+        logger.info(`${"=".repeat(50)}`);
+        
+        // Step 1: Submit the search
+        logger.info(`Submitting search: '${query}'`);
+        const searchResult = await masaService.searchTwitter(query, max_results);
+        
+        if (typeof searchResult === 'string') {
+          const jobId = searchResult;
+          logger.info(`Search submitted successfully. Job ID: ${jobId}`);
+          
+          // Step 2: Check status periodically until "done"
+          logger.info(`\nWaiting for results...`);
+          let status = "unknown";
+          let checkCount = 0;
+          const maxChecks = Math.ceil(max_wait_seconds / 2); // Check every 2 seconds
+          
+          while (status !== "done" && checkCount < maxChecks) {
+            // Wait 2 seconds between checks, like in the original script
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            logger.info(`Checking status for job ${jobId}`);
+            status = await masaService.checkTwitterSearchStatus(jobId);
+            logger.info(`Current status: ${status}`);
+            checkCount++;
+            
+            if (status === "error") {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `The search failed. Status: ${status}`,
+                  },
+                ],
+                isError: true,
+              };
+            }
+          }
+          
+          if (status !== "done") {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `Timeout reached (${max_wait_seconds}s), the search may still be in progress.\n\n` +
+                        `You can check the status later with:\nmasa_twitter_check_status with job_id: ${jobId}\n\n` +
+                        `And get results when finished with:\nmasa_twitter_get_results with job_id: ${jobId} and query: "${query}"`,
+                },
+              ],
+            };
+          }
+          
+          // Step 3: Retrieve the results
+          logger.info(`\nRETRIEVING RESULTS:`);
+          logger.info(`Getting results for job ${jobId}`);
+          const results = await masaService.getTwitterSearchResults(jobId, query);
+          logger.info(`Results retrieved successfully`);
+          
+          // Format results similar to original script
+          if (results && results.results) {
+            const numResults = Array.isArray(results.results) ? results.results.length : 'Unknown';
+            logger.info(`\nSUMMARY: ${numResults} tweets found`);
+            
+            let responseText = `${results.summary || ''}\n\n`;
+            
+            // Add sample tweets
+            if (Array.isArray(results.results) && results.results.length > 0) {
+              responseText += `SAMPLE TWEETS:\n\n`;
+              
+              for (let i = 0; i < Math.min(3, results.results.length); i++) {
+                responseText += `--- Tweet ${i+1} ---\n`;
+                const tweetContent = results.results[i].Content || results.results[i].text || 'Content not available';
+                responseText += `${tweetContent}\n\n`;
+              }
+            }
+            
+            // Add link to full results
+            if (numResults !== 'Unknown' && numResults > 3) {
+              responseText += `...\n\n(${numResults - 3} other tweets not displayed)\n\n`;
+            }
+            
+            logger.info(`\n${"=".repeat(50)}`);
+            logger.info(`WORKFLOW COMPLETED`);
+            logger.info(`${"=".repeat(50)}`);
+            
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: responseText,
+                },
+              ],
+            };
+          } else {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `No results found or incorrect result format.`,
+                },
+              ],
+            };
+          }
+        } else {
+          // Handle unlikely case of direct results
+          return {
+            content: [
+              {
+                type: "text",
+                text: `${searchResult.summary || ''}\n\n${JSON.stringify(searchResult.results || [], null, 2)}`,
+              },
+            ],
+          };
+        }
+      } catch (error) {
+        logger.error(`Error in Twitter search workflow: ${error instanceof Error ? error.message : "Unknown error"}`);
         return {
           content: [
             {
               type: "text",
-              text: `Search job started successfully. Job ID: ${searchResult}\n\nUse the masa_twitter_check_status tool to check if the job is complete.`,
+              text: `Error executing Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`,
             },
           ],
-        };
-      } else {
-        // Direct results (unlikely with current API)
-        return {
-          content: [
-            {
-              type: "text",
-              text: `${searchResult.summary}\n\n${JSON.stringify(searchResult.results || [], null, 2)}`,
-            },
-          ],
+          isError: true,
         };
       }
-    } catch (error) {
-      logger.error(`Error starting Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error starting Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`,
-          },
-        ],
-        isError: true,
-      };
     }
-  }
-);
-
-// Step 2: Check the status of a Twitter search job
-server.tool(
-  "masa_twitter_check_status",
-  "Check the status of a Twitter search job",
-  {
-    job_id: z.string().describe("The job ID returned from masa_twitter_search_start"),
-  },
-  async ({ job_id }) => {
-    try {
-      logger.info(`Checking status of Twitter search job: ${job_id}`);
-      const status = await masaService.checkTwitterSearchStatus(job_id);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Status of job ${job_id}: ${status}\n\n` +
-                  (status === "done" 
-                   ? "The search is complete. Use the masa_twitter_get_results tool to get the results." 
-                   : status.includes("error") 
-                     ? "The search encountered an error." 
-                     : "The search is still processing. Check again in a few seconds."),
-          },
-        ],
-      };
-    } catch (error) {
-      logger.error(`Error checking Twitter search status: ${error instanceof Error ? error.message : "Unknown error"}`);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error checking Twitter search status: ${error instanceof Error ? error.message : "Unknown error"}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
-
-// Step 3: Get the results of a completed Twitter search job
-server.tool(
-  "masa_twitter_get_results",
-  "Get the results of a completed Twitter search job",
-  {
-    job_id: z.string().describe("The job ID returned from masa_twitter_search_start"),
-    query: z.string().describe("The original search query"),
-  },
-  async ({ job_id, query }) => {
-    try {
-      logger.info(`Getting results for Twitter search job: ${job_id}`);
-      const results = await masaService.getTwitterSearchResults(job_id, query);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: `${results.summary}\n\n${JSON.stringify(results.results || [], null, 2)}`,
-          },
-        ],
-      };
-    } catch (error) {
-      logger.error(`Error getting Twitter search results: ${error instanceof Error ? error.message : "Unknown error"}`);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error getting Twitter search results: ${error instanceof Error ? error.message : "Unknown error"}`,
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-);
+  );
 
   // Register web scraper tool
   server.tool(

@@ -40,25 +40,25 @@ export class MasaService {
    * 
    * @param query The search query (can include keywords, hashtags, or Twitter operators)
    * @param maxResults Maximum number of results to return (max 100)
-   * @returns Structured Twitter search results with summary
+   * @returns Job ID as string for tracking the search request
    */
   public async searchTwitter(query: string, maxResults: number = 10): Promise<TwitterSearchResult | string> {
     await this.rateLimiter.acquire();
     
     try {
-      logger.info(`Initiating Twitter search for query: ${query}`);
+      logger.info(`Submitting Twitter search: '${query}'`);
       const response = await this.client.post("/api/v1/search/live/twitter", {
         query,
-        type: "searchbyquery",
-        max_results: Math.min(maxResults, 100),
+        max_results: Math.min(maxResults, 100)
       });
       
-      // Return the job ID if this is the initial request
+      // Return the job ID for tracking
       if (response.data && response.data.uuid) {
+        logger.info(`Search submitted successfully. Job ID: ${response.data.uuid}`);
         return response.data.uuid;
       }
       
-      // Handle case where we got direct results (unlikely with current API)
+      // Handle case where we might get direct results (unlikely with current API)
       const results = response.data?.results || [];
       const summary = this.generateTwitterSearchSummary(results, query);
       
@@ -69,15 +69,15 @@ export class MasaService {
       };
     } catch (error) {
       if (error instanceof Error) {
-        logger.error(`Twitter search error: ${error.message}`);
+        logger.error(`Error submitting search: ${error.message}`);
         throw new Error(`Failed to search Twitter: ${error.message}`);
       } else {
-        logger.error("Twitter search error: Unknown error");
+        logger.error("Unknown error during search submission");
         throw new Error("Failed to search Twitter: Unknown error");
       }
     }
   }
-  
+
   /**
    * Check the status of a Twitter search job
    * 
@@ -88,19 +88,22 @@ export class MasaService {
     await this.rateLimiter.acquire();
     
     try {
+      logger.info(`Checking status for job ${jobId}`);
       const statusResponse = await this.client.get(`/api/v1/search/live/twitter/status/${jobId}`);
-      return statusResponse.data?.status || "unknown";
+      const status = statusResponse.data?.status || "unknown";
+      logger.info(`Current status: ${status}`);
+      return status;
     } catch (error) {
       if (error instanceof Error) {
-        logger.error(`Error checking Twitter search status: ${error.message}`);
+        logger.error(`Error checking status: ${error.message}`);
         throw new Error(`Failed to check search status: ${error.message}`);
       } else {
-        logger.error("Error checking Twitter search status: Unknown error");
+        logger.error("Unknown error while checking status");
         throw new Error("Failed to check search status: Unknown error");
       }
     }
   }
-  
+
   /**
    * Get the results of a completed Twitter search job
    * 
@@ -112,23 +115,43 @@ export class MasaService {
     await this.rateLimiter.acquire();
     
     try {
+      logger.info(`Retrieving results for job ${jobId}`);
       const resultsResponse = await this.client.get(`/api/v1/search/live/twitter/result/${jobId}`);
-      const results = resultsResponse.data?.results || [];
       
-      // Generate a summary
-      const summary = this.generateTwitterSearchSummary(results, originalQuery);
+      let results;
+      if (Array.isArray(resultsResponse.data)) {
+        results = resultsResponse.data;
+      } else if (resultsResponse.data && resultsResponse.data.results) {
+        results = resultsResponse.data.results;
+      } else {
+        results = [];
+      }
+      
+      logger.info(`Results retrieved successfully`);
+      
+      const normalizedResults = results.map((tweet: { text?: string; Content?: string }) => {
+        if (!tweet.text && tweet.Content) {
+          return {
+            ...tweet,
+            text: tweet.Content
+          };
+        }
+        return tweet;
+      });
+      
+      const summary = this.generateTwitterSearchSummary(normalizedResults, originalQuery);
       
       return {
-        results,
+        results: normalizedResults,
         query: originalQuery,
         summary
       };
     } catch (error) {
       if (error instanceof Error) {
-        logger.error(`Error retrieving Twitter search results: ${error.message}`);
+        logger.error(`Error retrieving results: ${error.message}`);
         throw new Error(`Failed to retrieve search results: ${error.message}`);
       } else {
-        logger.error("Error retrieving Twitter search results: Unknown error");
+        logger.error("Unknown error while retrieving results");
         throw new Error("Failed to retrieve search results: Unknown error");
       }
     }
@@ -142,7 +165,8 @@ export class MasaService {
    * @returns A human-readable summary
    */
   private generateTwitterSearchSummary(results: any[], query: string): string {
-    if (!results || results.length === 0) {
+    // Vérifier si results est défini et non vide
+    if (!results || !Array.isArray(results) || results.length === 0) {
       return `No tweets found for query "${query}".`;
     }
     
@@ -151,21 +175,24 @@ export class MasaService {
     
     // Analyze sentiment if there are enough tweets
     if (count >= 3) {
-      // Very simple sentiment analysis based on common positive/negative words
       const positiveWords = ['good', 'great', 'excellent', 'amazing', 'love', 'best', 'positive', 'happy', 'excited', 'bullish'];
       const negativeWords = ['bad', 'terrible', 'awful', 'hate', 'worst', 'negative', 'sad', 'disappointing', 'bearish', 'crash'];
       
       let positiveCount = 0;
       let negativeCount = 0;
       
-      results.forEach(tweet => {
-        const text = tweet.text.toLowerCase();
-        positiveWords.forEach(word => {
-          if (text.includes(word)) positiveCount++;
-        });
-        negativeWords.forEach(word => {
-          if (text.includes(word)) negativeCount++;
-        });
+      // Correction : ajouter un type explicite pour le paramètre tweet
+      results.forEach((tweet: { text?: string; Content?: string }) => {
+        // Utiliser text ou Content, selon ce qui est disponible
+        const tweetText = (tweet.text || tweet.Content || '').toLowerCase();
+        if (tweetText) {
+          positiveWords.forEach(word => {
+            if (tweetText.includes(word)) positiveCount++;
+          });
+          negativeWords.forEach(word => {
+            if (tweetText.includes(word)) negativeCount++;
+          });
+        }
       });
       
       if (positiveCount > negativeCount) {
@@ -180,14 +207,16 @@ export class MasaService {
     // Add information about the latest tweet
     if (results[0]) {
       const latestTweet = results[0];
-      if (latestTweet.text) {
-        summary += ` Most recent tweet: "${latestTweet.text.length > 100 ? latestTweet.text.substring(0, 100) + '...' : latestTweet.text}"`;
+      // Utiliser text ou Content, selon ce qui est disponible
+      const tweetText = latestTweet.text || latestTweet.Content;
+      if (tweetText) {
+        summary += ` Most recent tweet: "${tweetText.length > 100 ? tweetText.substring(0, 100) + '...' : tweetText}"`;
       }
     }
     
     return summary;
   }
-  
+
   /**
    * Scrape content from a web page
    * 

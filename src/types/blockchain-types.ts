@@ -133,6 +133,7 @@ export interface TwitterSearchResult {
   results: Array<{
     id: string;
     text: string;
+    Content?: string;
     createdAt?: string;
     author?: {
       username: string;
