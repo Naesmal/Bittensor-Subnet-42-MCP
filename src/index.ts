@@ -254,371 +254,463 @@ if (masaService) {
 
 // Register Taostats tools if enabled
 if (taostatsService) {
-  // Register Tao price tool
-  server.tool(
-    "tao_price",
-    "Get the current and historical price of TAO token",
-    {
-      days: z.number().optional().describe("Number of days of price history to retrieve (default: 1)"),
-    },
-    async ({ days = 1 }) => {
-      try {
-        logger.info(`Getting TAO price history for ${days} days`);
-        const result = await taostatsService.getTaoPrice(days);
-        
-        if (!result || typeof result !== 'object') {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No price data available.",
-              },
-            ],
-          };
-        }
-        
-        // Create a properly formatted response
-        const response = [
-          result.summary || "No price data available.",
-          "",
-          "Current Price Details:",
-          "--------------",
-          result.currentPrice ? 
-            `Price: $${result.currentPrice.price.toFixed(2)}
-Change (24h): ${result.currentPrice.percentChange24h >= 0 ? '+' : ''}${result.currentPrice.percentChange24h.toFixed(2)}%
-Last Updated: ${new Date(result.currentPrice.timestamp * 1000).toLocaleString()}` :
-            "No current price data available"
-        ].join("\n");
-        
+// Replace the existing tao_price implementation with this:
+server.tool(
+  "tao_price",
+  "Get the current and historical price of TAO token",
+  {
+    days: z.number().optional().describe("Number of days of price history to retrieve (default: 1)"),
+  },
+  async ({ days = 1 }) => {
+    try {
+      logger.info(`Getting TAO price history for ${days} days`);
+      const result = await taostatsService.getTaoPrice(days);
+      
+      if (!result || typeof result !== 'object') {
         return {
           content: [
             {
               type: "text",
-              text: response,
+              text: "No price data available.",
             },
           ],
-        };
-      } catch (error) {
-        logger.error(`Error getting TAO price: ${error instanceof Error ? error.message : "Unknown error"}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving TAO price: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
         };
       }
-    }
-  );
+      
+      // Create a properly formatted response with the new data structure
+      const response = [
+        result.summary || "No price data available.",
+        "",
+        "Current Price Details:",
+        "--------------",
+      ];
 
-  // Register subnet info tool
-  server.tool(
-    "subnet_info",
-    "Get information about a specific Bittensor subnet",
-    {
-      netuid: z.number().describe("The subnet ID to get information for"),
-    },
-    async ({ netuid }) => {
-      try {
-        logger.info(`Getting subnet info for netuid: ${netuid}`);
-        const result = await taostatsService.getSubnetInfo(netuid);
+      if (result.currentPrice) {
+        response.push(`Price: $${result.currentPrice.price.toFixed(2)}`);
+        response.push(`Change (24h): ${result.currentPrice.priceChange24h >= 0 ? '+' : ''}${result.currentPrice.priceChange24h.toFixed(2)}%`);
         
-        if (!result || typeof result !== 'object') {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `No information available for subnet ${netuid}.`,
-              },
-            ],
-          };
+        // Add new fields that are available in the updated structure
+        if (result.currentPrice.marketCap) {
+          response.push(`Market Cap: $${(result.currentPrice.marketCap / 1000000000).toFixed(2)} billion`);
         }
         
-        // Format response with key metrics
-        const response = [
-          result.summary || `No information available for subnet ${netuid}.`,
-          "",
-          "Subnet Metrics:",
-          "--------------",
-          `Active Validators: ${result.activeValidators || 'N/A'}`,
-          `Daily Emission: ${result.emission?.toFixed(2) || 'N/A'} TAO`,
-          `Registrations: ${result.registrations || 'N/A'}`
-        ].join("\n");
+        if (result.currentPrice.volume24h) {
+          response.push(`24h Volume: $${(result.currentPrice.volume24h / 1000000).toFixed(2)} million`);
+        }
         
-        return {
-          content: [
-            {
-              type: "text",
-              text: response,
-            },
-          ],
-        };
-      } catch (error) {
-        logger.error(`Error getting subnet info: ${error instanceof Error ? error.message : "Unknown error"}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving subnet information: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
-        };
+        if (result.currentPrice.circulatingSupply) {
+          response.push(`Circulating Supply: ${result.currentPrice.circulatingSupply.toLocaleString()} TAO`);
+        }
+        
+        response.push(`Last Updated: ${result.currentPrice.timestamp}`);
+      } else {
+        response.push("No current price data available");
       }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: response.join("\n"),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting TAO price: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving TAO price: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  }
+);
 
-  // Register validator info tool
-  server.tool(
-    "validator_info",
-    "Get detailed information about a Bittensor validator",
-    {
-      hotkey: z.string().describe("Validator hotkey address"),
-    },
-    async ({ hotkey }) => {
-      try {
-        logger.info(`Getting validator info for hotkey: ${hotkey}`);
-        const result = await taostatsService.getValidatorInfo(hotkey);
-        
-        if (!result || !result.stake || typeof result.stake !== 'object') {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `No information available for validator ${hotkey}.`,
-              },
-            ],
-          };
-        }
-        
-        // Format response with key metrics
-        const response = [
-          result.summary || `No information available for validator ${hotkey}.`,
-          "",
-          "Validator Metrics:",
-          "-----------------",
-          `Total Stake: ${result.stake.total.toFixed(2)} TAO`,
-          `Self Stake: ${result.stake.selfStake.toFixed(2)} TAO (${(result.stake.total > 0 ? (result.stake.selfStake / result.stake.total) * 100 : 0).toFixed(1)}%)`,
-          `Delegated Stake: ${result.stake.delegatedStake.toFixed(2)} TAO (${(result.stake.total > 0 ? (result.stake.delegatedStake / result.stake.total) * 100 : 0).toFixed(1)}%)`,
-          "",
-          "Performance:",
-          "-----------",
-          `Daily Earnings: ${result.performance?.dailyEarnings?.toFixed(4) || 'N/A'} TAO`,
-          `Weekly Earnings: ${result.performance?.weeklyEarnings?.toFixed(4) || 'N/A'} TAO`,
-          `Monthly Est. Earnings: ${result.performance?.monthlyEarnings?.toFixed(4) || 'N/A'} TAO`,
-          `Uptime: ${result.performance?.uptimePercent?.toFixed(1) || 'N/A'}%`
-        ].join("\n");
-        
+// Replace the existing subnet_info implementation with this:
+server.tool(
+  "subnet_info",
+  "Get information about a specific Bittensor subnet",
+  {
+    netuid: z.number().describe("The subnet ID to get information for"),
+  },
+  async ({ netuid }) => {
+    try {
+      logger.info(`Getting subnet info for netuid: ${netuid}`);
+      const result = await taostatsService.getSubnetInfo(netuid);
+      
+      if (!result || typeof result !== 'object') {
         return {
           content: [
             {
               type: "text",
-              text: response,
+              text: `No information available for subnet ${netuid}.`,
             },
           ],
-        };
-      } catch (error) {
-        logger.error(`Error getting validator info: ${error instanceof Error ? error.message : "Unknown error"}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving validator information: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
         };
       }
+      
+      // Format response with key metrics using the new fields
+      const response = [
+        result.summary || `No information available for subnet ${netuid}.`,
+        "",
+        "Subnet Metrics:",
+        "--------------",
+        `Active Validators: ${result.activeValidators || 'N/A'}`,
+        `Active Miners: ${result.activeMiners || 'N/A'}`,
+        `Daily Emission: ${result.emission?.toFixed(2) || 'N/A'} TAO`,
+      ];
+      
+      // Add new fields from the updated structure
+      if (result.registrationAllowed !== undefined) {
+        response.push(`Registration Allowed: ${result.registrationAllowed ? 'Yes' : 'No'}`);
+        if (result.registrationAllowed && result.registrationCost !== undefined) {
+          response.push(`Registration Cost: ${result.registrationCost.toFixed(4)} TAO`);
+        }
+      }
+      
+      if (result.alphaPrice !== undefined && result.alphaPrice > 0) {
+        response.push(`Alpha Token Price: ${result.alphaPrice.toFixed(6)} TAO`);
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: response.join("\n"),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting subnet info: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving subnet information: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  }
+);
 
-  // Register top validators tool
-  server.tool(
-    "top_validators",
-    "Get a list of top Bittensor validators by stake",
-    {
-      limit: z.number().min(1).max(100).default(10).describe("Number of validators to return (max 100)"),
-    },
-    async ({ limit }) => {
-      try {
-        logger.info(`Getting top ${limit} validators`);
-        const result = await taostatsService.getTopValidators(limit);
-        
-        if (!result || !result.validators || !Array.isArray(result.validators)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No validator data available.",
-              },
-            ],
-          };
-        }
-        
-        // Format response with summary and top validators
-        let response = (result.summary || "Top validators by stake:") + "\n\nTop Validators:\n--------------\n";
-        
-        if (result.validators.length === 0) {
-          response += "No validators found.";
-        } else {
-          result.validators.forEach((validator, index) => {
-            if (validator && typeof validator === 'object') {
-              response += `${index + 1}. ${validator.name || "Unknown"} - ${validator.stake?.toFixed(2) || "0.00"} TAO\n`;
-            }
-          });
-        }
-        
+// Replace the existing validator_info implementation with this:
+server.tool(
+  "validator_info",
+  "Get detailed information about a Bittensor validator",
+  {
+    hotkey: z.string().describe("Validator hotkey address"),
+  },
+  async ({ hotkey }) => {
+    try {
+      logger.info(`Getting validator info for hotkey: ${hotkey}`);
+      const result = await taostatsService.getValidatorInfo(hotkey);
+      
+      if (!result || !result.stake || typeof result.stake !== 'object') {
         return {
           content: [
             {
               type: "text",
-              text: response,
+              text: `No information available for validator ${hotkey}.`,
             },
           ],
-        };
-      } catch (error) {
-        logger.error(`Error getting top validators: ${error instanceof Error ? error.message : "Unknown error"}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving top validators: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
         };
       }
+      
+      // Format response with key metrics using the updated structure
+      const response = [
+        result.summary || `No information available for validator ${hotkey}.`,
+        "",
+        "Validator Metrics:",
+        "-----------------",
+        `Total Stake: ${result.stake.total.toLocaleString()} TAO`,
+        `Self Stake: ${result.stake.selfStake.toLocaleString()} TAO (${(result.stake.total > 0 ? (result.stake.selfStake / result.stake.total) * 100 : 0).toFixed(1)}%)`,
+        `Delegated Stake: ${result.stake.delegatedStake.toLocaleString()} TAO (${(result.stake.total > 0 ? (result.stake.delegatedStake / result.stake.total) * 100 : 0).toFixed(1)}%)`,
+        "",
+      ];
+      
+      // Add fields from the updated stats structure
+      if (result.stats) {
+        response.push("Performance:");
+        response.push("-----------");
+        response.push(`Current APR: ${result.stats.apr.toFixed(2)}%`);
+        response.push(`Nominators: ${result.stats.nominators.toLocaleString()}`);
+        response.push(`Rank: ${result.stats.rank > 0 ? `#${result.stats.rank}` : 'Unranked'}`);
+        
+        if (result.stats.registrations && result.stats.registrations.length > 0) {
+          response.push(`Active Subnets: ${result.stats.registrations.join(', ')}`);
+        }
+      }
+      
+      // Add top delegators if available
+      if (result.delegations && result.delegations.length > 0) {
+        response.push("");
+        response.push("Top Delegators:");
+        response.push("-------------");
+        
+        result.delegations.slice(0, 3).forEach((delegation, index) => {
+          response.push(`${index + 1}. ${delegation.coldkey.substring(0, 10)}... - ${delegation.balance.toLocaleString()} TAO`);
+        });
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: response.join("\n"),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting validator info: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving validator information: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  }
+);
 
-  // Register network stats tool
-  server.tool(
-    "network_stats",
-    "Get general statistics about the Bittensor network",
-    {},
-    async () => {
-      try {
-        logger.info("Getting Bittensor network stats");
-        const result = await taostatsService.getNetworkStats();
-        
-        if (!result || typeof result !== 'object') {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "No network statistics available.",
-              },
-            ],
-          };
-        }
-        
-        // Format response with key metrics
-        const response = [
-          result.summary || "No network statistics available.",
-          "",
-          "Network Metrics:",
-          "---------------",
-          `Total Supply: ${result.totalSupply?.toFixed(2) || '0.00'} TAO`,
-          `Active Validators: ${result.activeValidators || 'N/A'}`,
-          `Total Subnets: ${result.totalSubnets || 'N/A'}`,
-          `Market Cap: $${result.marketCap?.toFixed(2) || '0.00'}`
-        ].join("\n");
-        
+// Replace the existing top_validators implementation with this:
+server.tool(
+  "top_validators",
+  "Get a list of top Bittensor validators by stake",
+  {
+    limit: z.number().min(1).max(75).default(10).describe("Number of validators to return (max 75)"),
+  },
+  async ({ limit }) => {
+    try {
+      logger.info(`Getting top ${limit} validators`);
+      const result = await taostatsService.getTopValidators(limit);
+      
+      if (!result || !result.validators || !Array.isArray(result.validators)) {
         return {
           content: [
             {
               type: "text",
-              text: response,
+              text: "No validator data available.",
             },
           ],
-        };
-      } catch (error) {
-        logger.error(`Error getting network stats: ${error instanceof Error ? error.message : "Unknown error"}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving network statistics: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
         };
       }
+      
+      // Format response with summary and top validators
+      let response = (result.summary || "Top validators by stake:") + "\n\nTop Validators:\n--------------\n";
+      
+      if (result.validators.length === 0) {
+        response += "No validators found.";
+      } else {
+        result.validators.forEach((validator, index) => {
+          if (validator && typeof validator === 'object') {
+            // Use the updated validator structure
+            const aprInfo = validator.apr > 0 ? ` (APR: ${validator.apr.toFixed(2)}%)` : '';
+            const nominatorInfo = validator.nominators > 0 ? ` - ${validator.nominators.toLocaleString()} nominators` : '';
+            
+            response += `${index + 1}. ${validator.name || "Unknown"} - ${validator.stake.toLocaleString()} TAO${nominatorInfo}${aprInfo}\n`;
+          }
+        });
+      }
+      
+      // Add pagination information
+      if (result.totalCount > limit) {
+        response += `\nShowing ${limit} of ${result.totalCount.toLocaleString()} validators (Page ${result.currentPage || 1} of ${result.totalPages || 1})`;
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: response,
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting top validators: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving top validators: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  }
+);
 
-  // Register delegator info tool
-  server.tool(
-    "delegator_info",
-    "Get information about delegations for a specific coldkey",
-    {
-      coldkey: z.string().describe("Delegator coldkey address"),
-    },
-    async ({ coldkey }) => {
-      try {
-        logger.info(`Getting delegator info for coldkey: ${coldkey}`);
-        const result = await taostatsService.getDelegatorInfo(coldkey);
-        
-        if (!result || typeof result !== 'object') {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `No delegation information found for coldkey ${coldkey}.`,
-              },
-            ],
-          };
-        }
-        
-        // Format response with key metrics
-        let response = [
-          result.summary || `No delegation information found for coldkey ${coldkey}.`,
-          "",
-          "Delegation Metrics:",
-          "------------------",
-          `Total Staked: ${result.totalStaked?.toFixed(2) || 'N/A'} TAO`,
-          `Validators: ${result.totalValidators || 'N/A'}`,
-          `Est. Daily Rewards: ${result.recentRewards?.toFixed(4) || 'N/A'} TAO`
-        ].join("\n");
-        
-        // Add top 3 delegations if available
-        if (result.delegations && Array.isArray(result.delegations) && result.delegations.length > 0) {
-          response += "\n\nTop Delegations:\n--------------\n";
-          
-          const topDelegations = result.delegations.slice(0, 3).map((d: any, i: number) => {
-            if (!d || typeof d !== 'object') return `${i + 1}. N/A`;
-            const amount = d.balance_raw ? (d.balance_raw / 1e9).toFixed(2) : '0.00';
-            const hotkey = d.hotkey ? d.hotkey.substring(0, 10) : 'unknown';
-            return `${i + 1}. ${amount} TAO to ${hotkey}...`;
-          }).join("\n");
-          
-          response += topDelegations;
-        }
-        
+// Replace the existing network_stats implementation with this:
+server.tool(
+  "network_stats",
+  "Get general statistics about the Bittensor network",
+  {},
+  async () => {
+    try {
+      logger.info("Getting Bittensor network stats");
+      const result = await taostatsService.getNetworkStats();
+      
+      if (!result || typeof result !== 'object') {
         return {
           content: [
             {
               type: "text",
-              text: response,
+              text: "No network statistics available.",
             },
           ],
-        };
-      } catch (error) {
-        logger.error(`Error getting delegator info: ${error instanceof Error ? error.message : "Unknown error"}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error retrieving delegator information: ${error instanceof Error ? error.message : "Unknown error"}`,
-            },
-          ],
-          isError: true,
         };
       }
+      
+      // Format response with key metrics using the updated fields
+      const response = [
+        result.summary || "No network statistics available.",
+        "",
+        "Network Metrics:",
+        "---------------",
+        `Total Supply: ${result.totalSupply?.toLocaleString() || '0.00'} TAO`,
+        `Total Staked: ${result.totalStaked?.toLocaleString() || '0.00'} TAO`,
+      ];
+      
+      // Add new fields from the updated structure
+      if (result.stakingRatio !== undefined) {
+        response.push(`Staking Ratio: ${result.stakingRatio.toFixed(2)}%`);
+      }
+      
+      if (result.activeAccounts !== undefined) {
+        response.push(`Active Accounts: ${result.activeAccounts.toLocaleString()}`);
+      }
+      
+      response.push(`Total Subnets: ${result.totalSubnets || 'N/A'}`);
+      
+      if (result.marketCap !== undefined) {
+        response.push(`Market Cap: $${(result.marketCap / 1000000000).toFixed(2)} billion`);
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: response.join("\n"),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting network stats: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving network statistics: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  }
+);
+
+// Replace the existing delegator_info implementation with this:
+server.tool(
+  "delegator_info",
+  "Get information about delegations for a specific coldkey",
+  {
+    coldkey: z.string().describe("Delegator coldkey address"),
+  },
+  async ({ coldkey }) => {
+    try {
+      logger.info(`Getting delegator info for coldkey: ${coldkey}`);
+      const result = await taostatsService.getDelegatorInfo(coldkey);
+      
+      if (!result || typeof result !== 'object') {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No delegation information found for coldkey ${coldkey}.`,
+            },
+          ],
+        };
+      }
+      
+      // Format response with key metrics using the updated fields
+      let response = [
+        result.summary || `No delegation information found for coldkey ${coldkey}.`,
+        "",
+        "Delegation Metrics:",
+        "------------------",
+        `Total Staked: ${result.totalStaked?.toLocaleString() || 'N/A'} TAO`,
+        `Validators: ${result.totalValidators || 'N/A'}`,
+        `Est. Daily Rewards: ${result.recentRewards?.toFixed(4) || 'N/A'} TAO`
+      ];
+      
+      // Add balance information if available
+      if (result.balanceHistory && result.balanceHistory.length > 0) {
+        const latestBalance = result.balanceHistory[0];
+        if (latestBalance) {
+          response.push("");
+          response.push("Account Balance:");
+          response.push("---------------");
+          response.push(`Free Balance: ${latestBalance.balanceFree.toLocaleString()} TAO`);
+          response.push(`Staked Balance: ${latestBalance.balanceStaked.toLocaleString()} TAO`);
+          response.push(`Total Balance: ${latestBalance.balanceTotal.toLocaleString()} TAO`);
+        }
+      }
+      
+      // Add top delegations if available using the updated structure
+      if (result.delegations && Array.isArray(result.delegations) && result.delegations.length > 0) {
+        response.push("");
+        response.push("Top Delegations:");
+        response.push("--------------");
+        
+        result.delegations.slice(0, 3).forEach((d, i) => {
+          const validatorName = d.hotkeyName || `${d.hotkey.substring(0, 10)}...`;
+          response.push(`${i + 1}. ${d.balance.toLocaleString()} TAO to ${validatorName}`);
+        });
+      }
+      
+      // Add recent delegation events
+      if (result.events && Array.isArray(result.events) && result.events.length > 0) {
+        response.push("");
+        response.push("Recent Activities:");
+        response.push("----------------");
+        
+        result.events.slice(0, 3).forEach((e, i) => {
+          const date = new Date(e.timestamp).toLocaleDateString();
+          response.push(`${i + 1}. ${e.action} ${e.amount.toLocaleString()} TAO on ${date}`);
+        });
+      }
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: response.join("\n"),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting delegator info: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error retrieving delegator information: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
 }
 
 // Choose transport based on environment configuration
