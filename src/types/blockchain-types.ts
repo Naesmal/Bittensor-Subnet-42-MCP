@@ -131,19 +131,39 @@ export interface ValidatorList {
 
 export interface TwitterSearchResult {
   results: Array<{
-    id: string;
-    text: string;
+    ID?: number;
+    ExternalID?: string;
+    id?: string;
+    text?: string;
     Content?: string;
+    Metadata?: {
+      author?: string;
+      conversation_id?: string;
+      created_at?: string;
+      lang?: string;
+      public_metrics?: {
+        BookmarkCount?: number;
+        ImpressionCount?: number;
+        LikeCount?: number;
+        QuoteCount?: number;
+        ReplyCount?: number;
+        RetweetCount?: number;
+      };
+      tweet_id?: number;
+      user_id?: string;
+      username?: string;
+    };
     createdAt?: string;
     author?: {
-      username: string;
+      username?: string;
       displayName?: string;
     };
     metrics?: {
-      likes: number;
-      retweets: number;
-      replies: number;
+      likes?: number;
+      retweets?: number;
+      replies?: number;
     };
+    Score?: number;
   }>;
   query: string;
   summary: string;
