@@ -42,25 +42,24 @@ export class MasaService {
    * @param maxResults Maximum number of results to return (max 100)
    * @returns Structured Twitter search results with summary
    */
-  public async searchTwitter(query: string, maxResults: number = 10): Promise<TwitterSearchResult> {
+  public async searchTwitter(query: string, maxResults: number = 10): Promise<TwitterSearchResult | string> {
     await this.rateLimiter.acquire();
     
     try {
+      logger.info(`Initiating Twitter search for query: ${query}`);
       const response = await this.client.post("/api/v1/search/live/twitter", {
         query,
         type: "searchbyquery",
         max_results: Math.min(maxResults, 100),
       });
       
-      // If this is just a job ID, we need to poll for results
+      // Return the job ID if this is the initial request
       if (response.data && response.data.uuid) {
-        return await this.pollTwitterSearchResults(response.data.uuid, query);
+        return response.data.uuid;
       }
       
-      // Handle case where we got direct results
+      // Handle case where we got direct results (unlikely with current API)
       const results = response.data?.results || [];
-      
-      // Generate a summary
       const summary = this.generateTwitterSearchSummary(results, query);
       
       return {
@@ -75,6 +74,62 @@ export class MasaService {
       } else {
         logger.error("Twitter search error: Unknown error");
         throw new Error("Failed to search Twitter: Unknown error");
+      }
+    }
+  }
+  
+  /**
+   * Check the status of a Twitter search job
+   * 
+   * @param jobId The job ID returned from the search request
+   * @returns The current status of the job
+   */
+  public async checkTwitterSearchStatus(jobId: string): Promise<string> {
+    await this.rateLimiter.acquire();
+    
+    try {
+      const statusResponse = await this.client.get(`/api/v1/search/live/twitter/status/${jobId}`);
+      return statusResponse.data?.status || "unknown";
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error(`Error checking Twitter search status: ${error.message}`);
+        throw new Error(`Failed to check search status: ${error.message}`);
+      } else {
+        logger.error("Error checking Twitter search status: Unknown error");
+        throw new Error("Failed to check search status: Unknown error");
+      }
+    }
+  }
+  
+  /**
+   * Get the results of a completed Twitter search job
+   * 
+   * @param jobId The job ID returned from the search request
+   * @param originalQuery The original search query
+   * @returns The search results
+   */
+  public async getTwitterSearchResults(jobId: string, originalQuery: string): Promise<TwitterSearchResult> {
+    await this.rateLimiter.acquire();
+    
+    try {
+      const resultsResponse = await this.client.get(`/api/v1/search/live/twitter/result/${jobId}`);
+      const results = resultsResponse.data?.results || [];
+      
+      // Generate a summary
+      const summary = this.generateTwitterSearchSummary(results, originalQuery);
+      
+      return {
+        results,
+        query: originalQuery,
+        summary
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        logger.error(`Error retrieving Twitter search results: ${error.message}`);
+        throw new Error(`Failed to retrieve search results: ${error.message}`);
+      } else {
+        logger.error("Error retrieving Twitter search results: Unknown error");
+        throw new Error("Failed to retrieve search results: Unknown error");
       }
     }
   }
@@ -131,57 +186,6 @@ export class MasaService {
     }
     
     return summary;
-  }
-  
-  /**
-   * Poll for Twitter search results
-   * 
-   * @param jobId The job ID returned from the search request
-   * @param originalQuery The original search query
-   * @returns The search results once available
-   */
-  private async pollTwitterSearchResults(jobId: string, originalQuery: string): Promise<TwitterSearchResult> {
-    const maxAttempts = 10;
-    const pollingInterval = 2000; // 2 seconds
-    
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, pollingInterval));
-      
-      try {
-        // Check the status of the job
-        const statusResponse = await this.client.get(`/api/v1/search/live/twitter/status/${jobId}`);
-        
-        if (statusResponse.data && statusResponse.data.status === "done") {
-          // Job is complete, fetch the results
-          const resultsResponse = await this.client.get(`/api/v1/search/live/twitter/result/${jobId}`);
-          const results = resultsResponse.data.results || [];
-          
-          // Generate a summary
-          const summary = this.generateTwitterSearchSummary(results, originalQuery);
-          
-          return {
-            results,
-            query: originalQuery,
-            summary
-          };
-        } else if (statusResponse.data && (statusResponse.data.status === "error" || statusResponse.data.status === "error(retrying)")) {
-          throw new Error(`Twitter search job failed: ${statusResponse.data.status}`);
-        }
-        
-        // Otherwise, keep polling
-        logger.info(`Twitter search job status: ${statusResponse.data?.status || "unknown"}, attempt ${attempt + 1}/${maxAttempts}`);
-      } catch (error) {
-        if (error instanceof Error) {
-          logger.error(`Error polling Twitter search results: ${error.message}`);
-          throw error;
-        } else {
-          logger.error("Error polling Twitter search results: Unknown error");
-          throw new Error("Error polling Twitter search results: Unknown error");
-        }
-      }
-    }
-    
-    throw new Error(`Twitter search timed out after ${maxAttempts} attempts`);
   }
   
   /**

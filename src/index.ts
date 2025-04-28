@@ -59,41 +59,129 @@ if (!masaService && !taostatsService) {
 
 // Register Masa tools if enabled
 if (masaService) {
-  // Register Twitter search tool
-  server.tool(
-    "masa_twitter_search",
-    "Search for recent tweets on a specific topic",
-    {
-      query: z.string().describe("Twitter search query (e.g., keywords, hashtags, or user mentions)"),
-      max_results: z.number().optional().describe("Maximum number of results to return (max 100)"),
-    },
-    async ({ query, max_results = 10 }) => {
-      try {
-        logger.info(`Running Twitter search for query: ${query}`);
-        const results = await masaService.searchTwitter(query, max_results);
-        
+// Step 1: Initiate a Twitter search and get a job ID
+server.tool(
+  "masa_twitter_search_start",
+  "Start a Twitter search job and get a job ID",
+  {
+    query: z.string().describe("Twitter search query (e.g., keywords, hashtags, or user mentions)"),
+    max_results: z.number().optional().describe("Maximum number of results to return (max 100)"),
+  },
+  async ({ query, max_results = 10 }) => {
+    try {
+      logger.info(`Starting Twitter search job for query: ${query}`);
+      const searchResult = await masaService.searchTwitter(query, max_results);
+      
+      if (typeof searchResult === 'string') {
         return {
           content: [
             {
               type: "text",
-              text: `${results.summary}\n\n${JSON.stringify(results.results || [], null, 2)}`,
+              text: `Search job started successfully. Job ID: ${searchResult}\n\nUse the masa_twitter_check_status tool to check if the job is complete.`,
             },
           ],
         };
-      } catch (error) {
-        logger.error(`Error in Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`);
+      } else {
+        // Direct results (unlikely with current API)
         return {
           content: [
             {
               type: "text",
-              text: `Error executing Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`,
+              text: `${searchResult.summary}\n\n${JSON.stringify(searchResult.results || [], null, 2)}`,
             },
           ],
-          isError: true,
         };
       }
+    } catch (error) {
+      logger.error(`Error starting Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error starting Twitter search: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
     }
-  );
+  }
+);
+
+// Step 2: Check the status of a Twitter search job
+server.tool(
+  "masa_twitter_check_status",
+  "Check the status of a Twitter search job",
+  {
+    job_id: z.string().describe("The job ID returned from masa_twitter_search_start"),
+  },
+  async ({ job_id }) => {
+    try {
+      logger.info(`Checking status of Twitter search job: ${job_id}`);
+      const status = await masaService.checkTwitterSearchStatus(job_id);
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Status of job ${job_id}: ${status}\n\n` +
+                  (status === "done" 
+                   ? "The search is complete. Use the masa_twitter_get_results tool to get the results." 
+                   : status.includes("error") 
+                     ? "The search encountered an error." 
+                     : "The search is still processing. Check again in a few seconds."),
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error checking Twitter search status: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error checking Twitter search status: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+// Step 3: Get the results of a completed Twitter search job
+server.tool(
+  "masa_twitter_get_results",
+  "Get the results of a completed Twitter search job",
+  {
+    job_id: z.string().describe("The job ID returned from masa_twitter_search_start"),
+    query: z.string().describe("The original search query"),
+  },
+  async ({ job_id, query }) => {
+    try {
+      logger.info(`Getting results for Twitter search job: ${job_id}`);
+      const results = await masaService.getTwitterSearchResults(job_id, query);
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `${results.summary}\n\n${JSON.stringify(results.results || [], null, 2)}`,
+          },
+        ],
+      };
+    } catch (error) {
+      logger.error(`Error getting Twitter search results: ${error instanceof Error ? error.message : "Unknown error"}`);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error getting Twitter search results: ${error instanceof Error ? error.message : "Unknown error"}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
 
   // Register web scraper tool
   server.tool(
